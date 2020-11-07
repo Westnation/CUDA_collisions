@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30621.155
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PhysicsSimulation", "PhysicsSimulation.vcxproj", "{27362B09-1639-4257-9D27-CB585651DBEA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{27362B09-1639-4257-9D27-CB585651DBEA}.Debug|x64.ActiveCfg = Debug|x64
+		{27362B09-1639-4257-9D27-CB585651DBEA}.Debug|x64.Build.0 = Debug|x64
+		{27362B09-1639-4257-9D27-CB585651DBEA}.Release|x64.ActiveCfg = Release|x64
+		{27362B09-1639-4257-9D27-CB585651DBEA}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {73462C0B-F250-4469-B26B-81E9BA65AC9E}
+	EndGlobalSection
+EndGlobal
