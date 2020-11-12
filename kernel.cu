@@ -7,6 +7,7 @@
 #include <vector>
 #include <time.h>
 #include <fstream>
+#include <conio.h>
 
 class Vector2D
 {
@@ -118,17 +119,17 @@ void generateBodies(std::vector<Body>* bodies, unsigned long long numberOfBodies
 {
     for (unsigned long long i = 0; i < numberOfBodies; i++)
     {
-        double lower_bound_position = -5000;
-        double upper_bound_position = 5000;
+        double lower_bound_position = -10000;
+        double upper_bound_position = 10000;
 
-        double lower_bound_velocity = -10;
-        double upper_bound_velocity = 10;
+        double lower_bound_velocity = -20;
+        double upper_bound_velocity = 20;
 
         double xPosition = ((double(rand()) / double(RAND_MAX)) * (upper_bound_position - lower_bound_position)) + lower_bound_position;
         double yPosition = ((double(rand()) / double(RAND_MAX)) * (upper_bound_position - lower_bound_position)) + lower_bound_position;
         Vector2D position = Vector2D(xPosition, yPosition);
 
-        double radius = double(rand()) / double(RAND_MAX) * 5;
+        double radius = double(rand()) / double(RAND_MAX) * 10;
         double mass = double(rand()) / double(RAND_MAX) * 5;
 
         double xDirection = ((double(rand()) / double(RAND_MAX)) * (upper_bound_velocity - lower_bound_velocity)) + lower_bound_velocity;
@@ -151,10 +152,8 @@ void serial(std::vector<Body>* bodies, double time, double percent)
     {
         for (unsigned long long i = 0; i < (*bodies).size(); i++)
         {
-            for (unsigned long long j = 0; j < (*bodies).size(); j++)
+            for (unsigned long long j = i+1; j < (*bodies).size(); j++)
             {
-                if (i == j) continue;
-
                 // определяем текущую дистанцию проникновения (отрицательная - проникновения нет, 0 - касание)
                 Vector2D distance = (*bodies)[i].position - (*bodies)[j].position;
                 double penetrationDepth = (*bodies)[i].radius + (*bodies)[j].radius - distance.magnitude();
@@ -186,7 +185,7 @@ void serial(std::vector<Body>* bodies, double time, double percent)
                     if ((*bodies)[i].canDivide) // может ли текущее тело делится
                     {
                         double chance1 = double(rand()) / double(RAND_MAX);
-                        if (chance1 < percent) // если тело разделилось
+                        if (chance1 < percent) // если тело разделилось создаём новое тело
                         {
                             Vector2D position = (*bodies)[i].position - normal.normal() * ((*bodies)[i].radius / 2);
                             Body body = Body(position, -(*bodies)[i].velocity, (*bodies)[i].mass / 4, (*bodies)[i].radius / 4, false);
@@ -201,7 +200,7 @@ void serial(std::vector<Body>* bodies, double time, double percent)
                     if ((*bodies)[j].canDivide) // может ли текущее тело делится
                     {
                         double chance2 = double(rand()) / double(RAND_MAX);
-                        if (chance2 < percent) // если тело разделилось
+                        if (chance2 < percent) // если тело разделилось создаём новое тело
                         {
                             Vector2D position = (*bodies)[j].position - normal.normal() * ((*bodies)[j].radius / 2);
                             Body body = Body(position, -(*bodies)[j].velocity, (*bodies)[j].mass / 4, (*bodies)[j].radius / 4, false);
@@ -239,7 +238,7 @@ __global__ void parallelCollision(Body* bodies, unsigned long long* size, double
             Vector2D distance = bodies[tid].position - bodies[j].position;
             double penetrationDepth = bodies[tid].radius + bodies[j].radius - distance.magnitude();
             // если есть проникновение
-            if (penetrationDepth > 0 && tid < j)
+            if (penetrationDepth > 0)
             {
                 // устраняем overlapping-ситуацию - пересечение двух тел
                 Vector2D penetrationResolution = distance.normalized() * (penetrationDepth / (bodies[tid].inverseMass + bodies[j].inverseMass));
@@ -267,7 +266,7 @@ __global__ void parallelCollision(Body* bodies, unsigned long long* size, double
                     curand_init(tid + seed, 0, 0, &state[0]);
                     double cur_rand = curand_uniform(&state[0]);
                     double chance1 = cur_rand / double(RAND_MAX);
-                    if (chance1 < percent) // если тело разделилось
+                    if (chance1 <= percent) // если тело разделилось создаём новое тело
                     {
                         Vector2D position = bodies[tid].position - normal.normal() * (bodies[tid].radius / 2);
                         Body body = Body(position, -bodies[tid].velocity, bodies[tid].mass / 4, bodies[tid].radius / 4, false);
@@ -285,7 +284,7 @@ __global__ void parallelCollision(Body* bodies, unsigned long long* size, double
                     curand_init(j + seed, 0, 0, &state[0]);
                     double cur_rand = curand_uniform(&state[0]);
                     double chance2 = cur_rand / double(RAND_MAX);
-                    if (chance2 < percent) // если тело разделилось
+                    if (chance2 <= percent) // если тело разделилось создаём новое тело
                     {
                         Vector2D position = bodies[j].position - normal.normal() * (bodies[j].radius / 2);
                         Body body = Body(position, -bodies[j].velocity, bodies[j].mass / 4, bodies[j].radius / 4, false);
@@ -303,7 +302,7 @@ __global__ void parallelCollision(Body* bodies, unsigned long long* size, double
     }
 }
 
-__global__ void parallelPositions(Body* bodies, unsigned long long *size, unsigned long long blockCount)
+__global__ void parallelPositions(Body* bodies, unsigned long long* size, unsigned long long blockCount)
 {
     unsigned long long tid = threadIdx.x + blockIdx.x * blockDim.x;
     while (tid < *size)
@@ -315,12 +314,13 @@ __global__ void parallelPositions(Body* bodies, unsigned long long *size, unsign
 
 int main()
 {
-    setlocale(LC_ALL, "Russian");
-
     // количество тел
-    unsigned long long numberOfBodies;
-    printf("Введите количество тел (целое): ");
-    std::cin >> numberOfBodies;
+    unsigned long long numberOfBodies = 0;
+    while (numberOfBodies == 0)
+    {
+        printf("Vvedite kol-vo tel (celoe+): ");
+        std::cin >> numberOfBodies;
+    }
 
     // хранение тел
     std::vector<Body> bodies;
@@ -329,23 +329,29 @@ int main()
     serialBodies.assign(bodies.begin(), bodies.end());
 
     // вероятность разделения
-    double percent;
-    printf("Введите вероятность разделения тела (вещественное от 0 до 1). Для отключения разделения введите 0: ");
-    std::cin >> percent;
+    double percent = -1;
+    while (percent < 0 || percent > 1)
+    {
+        printf("Vvedite veroyatnost' razdeleniya tela (veshestvennoe ot 0 do 1):");
+        std::cin >> percent;
+    }
 
     // время симуляции
-    double time;
-    printf("Введите время симуляции (вещественное): ");
-    std::cin >> time;
+    double time = -1;
+    while (time <= 0)
+    {
+        printf("Vvedite vremya simulyacii (veshestvennoe+): ");
+        std::cin >> time;
+    }
 
     // последовательное вычисление
-    printf("\nПОСЛЕДОВАТЕЛЬНОЕ ВЫЧИСЛЕНИЕ...\n");
+    printf("\nCPU...\n");
     time_t start = clock();
     serial(&serialBodies, time, percent);
-    printf("Время последовательного вычисления: %f\n", (double)(clock() - start) / CLOCKS_PER_SEC);
+    printf("CPU TIME: %fs\n", (double)(clock() - start) / CLOCKS_PER_SEC);
 
     // запись результатов последовательного вычисления в файл
-    std::ofstream serialResults ("serialResults.txt");
+    std::ofstream serialResults("serialResults.txt");
     for (unsigned long long i = 0; i < serialBodies.size(); i++)
     {
         serialResults << i << " " << serialBodies[i].position.x << " " << serialBodies[i].position.y << "\n";
@@ -353,18 +359,18 @@ int main()
     serialResults.close();
 
     unsigned long long size = bodies.size();
-    unsigned long long *size_dev;
-    
+    unsigned long long* size_dev;
+
     // параметры текущего устройства
     int dev = 0;
     cudaSetDevice(dev);
     cudaDeviceProp deviceProp;
     cudaGetDeviceProperties(&deviceProp, dev);
-    int threads = deviceProp.maxThreadsPerBlock;
+    int threads = deviceProp.maxThreadsPerBlock / 4;
     int blocks = (size + threads - 1) / threads;
 
     // параллельное вычисление
-    printf("\nПАРАЛЛЕЛЬНОЕ ВЫЧИСЛЕНИЕ...\n");
+    printf("\GPU...\n");
     start = clock();
 
     // выделение памяти на видеокарте и копирование туда массива тел и его размер
@@ -387,7 +393,7 @@ int main()
         parallelPositions <<< blocks, threads >>> (dev_bodies, size_dev, blocks);
         cudaDeviceSynchronize();
     }
-    printf("Время параллельного вычисления: %f\n", (double)(clock() - start) / CLOCKS_PER_SEC);
+    printf("GPU TIME: %fs\n", (double)(clock() - start) / CLOCKS_PER_SEC);
 
     // копирование результатов вычисления с ГПУ
     cudaMemcpy(&size, size_dev, sizeof(unsigned long long), cudaMemcpyDeviceToHost);
@@ -411,17 +417,16 @@ int main()
     unsigned long long max_size = serialBodies.size() > size ? serialBodies.size() : size;
     unsigned long long min_size = serialBodies.size() < size ? serialBodies.size() : size;
     unsigned long long counter = 0;
-    int index1;
     for (unsigned long long i = 0; i < min_size; i++)
     {
-        if (serialBodies[i].position == parallelBodies[i].position) counter++;
-        else index1 = i;
+        if (abs(serialBodies[i].position.x - parallelBodies[i].position.x) < 0.01 && abs(serialBodies[i].position.y - parallelBodies[i].position.y) < 0.01) counter++;
     }
-    printf("\nРЕЗУЛЬТАТЫ:\n");
-    if (percent != 0 && percent != 1) printf("ВНИМАНИЕ: заданный шанс деления тел не равен 0 или 1. Результаты двух методов могут отличаться.\n");
-    printf("Количество тел в результате последовательного вычисления: %llu\n", serialBodies.size());
-    printf("Количество тел в результате параллельного вычисления: %llu\n", size);
-    printf("Совпадений позиций тел: %llu из %llu. В процентном соотношении: %3.4f\n", counter, max_size, 100 * (double)counter / max_size);
-    printf("Были созданы 2 файла: serialResults.txt и parallelResults.txt. В них записаны конечные позиции тел.");
-    printf("%d", index1);
+    printf("\nRESULTS:\n");
+    if (percent != 0 && percent != 1) printf("WARNING: shans deleniya tel ne raven 0 ili 1. Rezultati metodov mogut silno razlichatsya.\n");
+    printf("CPU kol-vo tel: %llu\n", serialBodies.size());
+    printf("GPU kol-vo tel: %llu\n", size);
+    printf("Sovpadenii pozicii tel: %llu iz %llu. V procentah: %3.4f\n\n", counter, max_size, 100 * (double)counter / max_size);
+    printf("Bili sozdani 2 faila: serialResults.txt i parallelResults.txt. V nih zapisani konechnie pozicii tel.\n");
+
+    getch();
 }
